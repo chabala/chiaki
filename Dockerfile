@@ -1,5 +1,7 @@
-# docker build --rm -t chiaki:latest . && docker run -it --name chiaki chiaki:latest
-FROM alpine:edge # https://hub.docker.com/_/alpine
+# syntax = docker/dockerfile:1.4
+# build with: DOCKER_BUILDKIT=1 docker build --rm -t chiaki:latest . && docker run -it --name chiaki chiaki:latest
+# https://hub.docker.com/_/alpine
+FROM alpine:edge
 ENTRYPOINT ["bash"]
 WORKDIR /chiaki
 RUN \
@@ -10,15 +12,27 @@ RUN \
     ffmpeg-dev sdl2-dev docker fuse argp-standalone \
     bash git
 COPY . /chiaki
-RUN \
-  set -ex && \
-  service docker start && \
-  chmod +s /usr/bin/docker && \
-  service fuse start && \
-  cd /chiaki/ && \
-  cmake -Bbuild -GNinja -DCHIAKI_ENABLE_CLI=ON -DCHIAKI_ENABLE_GUI=ON -DCHIAKI_CLI_ARGP_STANDALONE=ON && \
-  ninja -C build && \
-  build/test/chiaki-unit && \
-  cd /chiaki/ && \
-  scripts/run-docker-build-appimage.sh && \
-  cp appimage/Chiaki.AppImage ../Chiaki.AppImage
+
+COPY <<EOF build.sh
+#!/bin/bash
+
+set -xe
+
+service docker start
+chmod +s /usr/bin/docker
+service fuse start
+
+cd /chiaki/
+cmake -Bbuild -GNinja -DCHIAKI_ENABLE_CLI=ON -DCHIAKI_ENABLE_GUI=ON -DCHIAKI_CLI_ARGP_STANDALONE=ON
+ninja -C build
+build/test/chiaki-unit
+
+cd /chiaki/
+scripts/run-docker-build-appimage.sh
+cp appimage/Chiaki.AppImage ../Chiaki.AppImage
+
+EOF
+
+RUN chmod +x build.sh
+CMD ["/bin/bash", "/chiaki/build.sh"]
+
